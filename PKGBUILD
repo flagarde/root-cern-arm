@@ -1,15 +1,13 @@
- 
 # Maintainer: Konstantin Gizdov < arch at kge dot pw >
 # Contributor: Frank Siegert < frank.siegert at googlemail dot com >
 # Contributor: Scott Lawrence < bytbox at gmail dot com >
 # Contributor: Thomas Dziedzic < gostrc at gmail dot com >
 # Contributor: Sebastian Voecking < voeck at web dot de >
-# Adapted for arm : Lagarde François
 
 pkgbase=root
 pkgname=('root')
-pkgver=6.16.00
-pkgrel=6
+pkgver=6.18.00
+pkgrel=2
 pkgdesc='C++ data analysis framework and interpreter from CERN'
 arch=('x86_64' 'aarch64')
 url='https://root.cern.ch'
@@ -22,6 +20,7 @@ makedepends=('ccache'
              'ftgl'
              'blas'
              'gcc-fortran'
+             'gcc'
              'giflib'
              'git'
              'gl2ps'
@@ -55,6 +54,7 @@ depends=('blas'
          'giflib'
          'gl2ps'
          'glew'
+         'graphviz'
          'gsl'
          'hicolor-icon-theme'
          'intel-tbb'
@@ -62,6 +62,7 @@ depends=('blas'
          'librsvg'
          'libxpm'
          'tex-gyre-fonts'
+         'unixodbc'
          'xxhash>=0.6.5-1')
 optdepends=('cfitsio: Read images and data from FITS files'
             'libmariadbclient: MySQL support'
@@ -76,16 +77,12 @@ source=("https://root.cern.ch/download/root_v${pkgver}.source.tar.gz"
         'root.xml'
         'rootd'
         'settings.cmake'
-        'fix_compile_time_install_clad.patch'
-        'adding_directories_needed_to_use_libxml.patch'
-        'rename_based_fix_for_rconfig_on_case_sensitive_systems.patch')
-sha256sums=('SKIP'
+        )
+sha256sums=('e6698d6cfe585f186490b667163db65e7d1b92a2447658d77fa831096383ea71'
             'SKIP'
+            '3c45b03761d5254142710b7004af0077f18efece7c95511910140d0542c8de8a'
             'SKIP'
-            'SKIP'
-            'SKIP'
-            'SKIP'
-            'SKIP')
+            )
 get_pyver () {
     python -c 'import sys; print(str(sys.version_info[0]) + "." + str(sys.version_info[1]))'
 }
@@ -94,16 +91,11 @@ prepare() {
 
     2to3 -w "${srcdir}/${pkgbase}-${pkgver}"/etc/dictpch/makepch.py 2>&1 > /dev/null
 
-    patch -d "${srcdir}/${pkgbase}-${pkgver}" -Np1 -i "${srcdir}/fix_compile_time_install_clad.patch"
-    patch -d "${srcdir}/${pkgbase}-${pkgver}" -Np1 -i "${srcdir}/adding_directories_needed_to_use_libxml.patch"
-    patch -d "${srcdir}/${pkgbase}-${pkgver}" -Np1 -i "${srcdir}/rename_based_fix_for_rconfig_on_case_sensitive_systems.patch"
-
     # don't let ROOT play around with lib paths
     sed -i -e 's@SetLibraryPath();@@g' \
         "${srcdir}/${pkgbase}-${pkgver}/rootx/src/rootx.cxx"
 
-    # trust system to find GSL
-    rm "${srcdir}/${pkgbase}-${pkgver}/cmake/modules/FindGSL.cmake"
+    cp -r "${pkgbase}-${pkgver}" "${pkgbase}-${pkgver}-cuda"
 }
 
 build() {
@@ -111,8 +103,8 @@ build() {
     mkdir -p "${srcdir}/build"
     cd "${srcdir}/build"
 
-    CFLAGS="$distcc gcc {CFLAGS} -pthread" \
-    CXXFLAGS="distcc gcc ${CXXFLAGS} -pthread" \
+    CFLAGS="${CFLAGS} -pthread" \
+    CXXFLAGS="${CXXFLAGS} -pthread" \
     LDFLAGS="${LDFLAGS} -pthread -Wl,--no-undefined" \
     cmake -C "${srcdir}/settings.cmake" -DTARGET_ARCHITECTURE:STRING=generic -DPYTHON_EXECUTABLE:PATH=/usr/bin/python \
     "${srcdir}/${pkgbase}-${pkgver}"
@@ -150,14 +142,12 @@ package_root() {
     install -D -m644 "${srcdir}/root.xml" \
         "${pkgdir}/usr/share/mime/packages/root.xml"
 
-    install -D -m644 "${srcdir}/${pkgbase}-${pkgver}/build/package/debian/root-system-bin.desktop.in" \
-        "${pkgdir}/usr/share/applications/root-system-bin.desktop"
+    install -D -m644 "${srcdir}/${pkgbase}-${pkgver}/etc/root.desktop" \
+        "${pkgdir}/usr/share/applications/root.desktop"
 
-    # replace @prefix@ with /usr for the desktop
-    sed -e 's_@prefix@_/usr_' -i "${pkgdir}/usr/share/applications/root-system-bin.desktop"
-
-    install -D -m644 "${srcdir}/${pkgbase}-${pkgver}/build/package/debian/root-system-bin.png" \
-        "${pkgdir}/usr/share/icons/hicolor/48x48/apps/root-system-bin.png"
+    install -D -m644 "${srcdir}/${pkgbase}-${pkgver}/icons/Root6Icon.png" \
+        "${pkgdir}/usr/share/icons/hicolor/48x48/apps/root.png"
+    echo 'Icon=root.png' >> "${pkgdir}/usr/share/applications/root.desktop"
 
     # use a file that pacman can track instead of adding directly to ld.so.conf
     install -d "${pkgdir}/etc/ld.so.conf.d"
@@ -165,3 +155,4 @@ package_root() {
 
     rm -rf "${pkgdir}/etc/root/daemons"
 }
+
